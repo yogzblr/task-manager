@@ -1,0 +1,38 @@
+{{- if .Values.valkey.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "control-plane.name" . }}-valkey
+  labels:
+    {{- include "control-plane.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "control-plane.name" . }}-valkey
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valkey
+  template:
+    metadata:
+      labels:
+        app: valkey
+    spec:
+      containers:
+      - name: valkey
+        image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
+        ports:
+        - containerPort: 6379
+          name: valkey
+        volumeMounts:
+        - name: valkey-data
+          mountPath: /data
+        resources:
+          {{- toYaml .Values.valkey.resources | nindent 10 }}
+  volumeClaimTemplates:
+  - metadata:
+      name: valkey-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.valkey.persistence.size }}
+{{- end }}

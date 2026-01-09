@@ -1,0 +1,19 @@
+# Automation Agent Configuration
+# Control Plane URL
+CONTROL_PLANE_URL=https://cp.example.com
+
+# Tenant and Project
+TENANT_ID=your-tenant-id
+PROJECT_ID=your-project-id
+
+# Agent ID (leave empty to auto-generate)
+AGENT_ID=
+
+# JWT Token or path to token file
+JWT_TOKEN=your-jwt-token
+
+# Proxy Configuration (optional)
+# PROXY_URL=http://proxy.example.com:3128
+
+# Log Level
+LOG_LEVEL=info

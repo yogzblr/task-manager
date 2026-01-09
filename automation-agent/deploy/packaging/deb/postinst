@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+# Create user and group
+if ! id "automation-agent" &>/dev/null; then
+    useradd -r -s /bin/false -d /var/lib/automation-agent automation-agent
+fi
+
+# Create directories
+mkdir -p /var/lib/automation-agent
+mkdir -p /var/log/automation-agent
+chown automation-agent:automation-agent /var/lib/automation-agent
+chown automation-agent:automation-agent /var/log/automation-agent
+
+# Enable and start service
+systemctl daemon-reload
+systemctl enable automation-agent.service
+systemctl start automation-agent.service
+
+exit 0

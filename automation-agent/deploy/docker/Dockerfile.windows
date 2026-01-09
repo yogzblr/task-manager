@@ -1,0 +1,6 @@
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+COPY automation-agent.exe C:\\automation-agent\\automation-agent.exe
+
+WORKDIR C:\\automation-agent
+ENTRYPOINT ["C:\\automation-agent\\automation-agent.exe"]

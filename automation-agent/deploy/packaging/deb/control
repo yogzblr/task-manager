@@ -1,0 +1,9 @@
+Package: automation-agent
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: systemd
+Maintainer: Automation Platform Team <team@example.com>
+Description: Automation Agent
+ Cross-platform automation agent for the automation platform.

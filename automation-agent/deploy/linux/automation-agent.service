@@ -1,0 +1,16 @@
+[Unit]
+Description=Automation Agent
+After=network.target
+
+[Service]
+Type=simple
+User=automation-agent
+Group=automation-agent
+ExecStart=/usr/local/bin/automation-agent
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+EnvironmentFile=-/etc/sysconfig/automation-agent
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,166 @@
+openapi: 3.1.0
+info:
+  title: Automation Control Plane API
+  version: v1
+  description: Multi-tenant automation control plane with projects, RBAC, audit logs
+servers:
+  - url: https://cp.example.com/api
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Permission:
+      type: string
+      enum:
+        - job:run
+        - job:read
+        - job:cancel
+        - agent:read
+        - agent:upgrade
+        - project:admin
+        - artifact:write
+        - audit:read
+    Role:
+      type: object
+      properties:
+        role:
+          type: string
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
+    Project:
+      type: object
+      properties:
+        project_id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+    User:
+      type: object
+      properties:
+        user_id:
+          type: string
+        tenant_id:
+          type: string
+        email:
+          type: string
+        display_name:
+          type: string
+    Pagination:
+      type: object
+      properties:
+        limit:
+          type: integer
+          default: 50
+        cursor:
+          type: string
+    AuditLog:
+      type: object
+      properties:
+        audit_id:
+          type: string
+        tenant_id:
+          type: string
+        project_id:
+          type: string
+        actor_type:
+          type: string
+          enum:
+            - user
+            - agent
+        actor_id:
+          type: string
+        action:
+          type: string
+        resource:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    JobCreate:
+      type: object
+      required:
+        - workflow
+        - project_id
+      properties:
+        project_id:
+          type: string
+        workflow:
+          type: object
+paths:
+  /projects:
+    get:
+      summary: List projects
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project list
+  /jobs:
+    post:
+      summary: Run job
+      description: Requires job:run permission
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobCreate"
+      responses:
+        "201":
+          description: Job created
+  /agents/{agent_id}/upgrade:
+    post:
+      summary: Upgrade agent
+      description: Requires agent:upgrade permission
+      responses:
+        "202":
+          description: Upgrade triggered
+  /audit/logs:
+    get:
+      summary: Query audit logs
+      description: Requires audit:read permission
+      parameters:
+        - name: project_id
+          in: query
+          schema:
+            type: string
+        - name: actor_id
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"

@@ -1,0 +1,96 @@
+controlPlane:
+  replicaCount: 2
+  image:
+    repository: automation-platform/control-plane
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    MYSQL_DSN: "mysql://automation:password@mysql:3306/automation"
+    VALKEY_ADDR: "valkey:6379"
+    CENTRIFUGO_URL: "http://centrifugo:8000"
+    QUICKWIT_URL: "http://quickwit:7280"
+    JWT_SECRET: "change-me-in-production"
+
+mysql:
+  enabled: true
+  image:
+    repository: mysql
+    tag: "8.0"
+  rootPassword: "rootpass"
+  database: "automation"
+  user: "automation"
+  password: "password"
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+valkey:
+  enabled: true
+  image:
+    repository: valkey/valkey
+    tag: latest
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+centrifugo:
+  enabled: true
+  image:
+    repository: centrifugo/centrifugo
+    tag: latest
+  apiKey: "change-me-in-production"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+quickwit:
+  enabled: true
+  image:
+    repository: quickwit/quickwit
+    tag: latest
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: cp.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Automation Agent" Language="1033" Version="1.0.0" Manufacturer="Automation Platform" UpgradeCode="YOUR-UPGRADE-CODE-HERE">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+    
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    
+    <MediaTemplate />
+    
+    <Feature Id="ProductFeature" Title="Automation Agent" Level="1">
+      <ComponentRef Id="ApplicationFiles" />
+      <ComponentRef Id="ServiceComponent" />
+    </Feature>
+  </Product>
+  
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="AutomationAgent" />
+      </Directory>
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="CONFIGFOLDER" Name="AutomationAgent" />
+      </Directory>
+    </Directory>
+  </Fragment>
+  
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="ApplicationFiles">
+        <File Id="AutomationAgentExe" Source="automation-agent.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+  
+  <Fragment>
+    <Component Id="ServiceComponent" Directory="INSTALLFOLDER">
+      <ServiceInstall Id="AutomationAgentService"
+                      Type="ownProcess"
+                      Name="AutomationAgent"
+                      DisplayName="Automation Agent"
+                      Description="Automation Agent Service"
+                      Start="auto"
+                      Account="LocalSystem"
+                      ErrorControl="normal" />
+      <ServiceControl Id="AutomationAgentService"
+                      Stop="both"
+                      Remove="uninstall"
+                      Name="AutomationAgent"
+                      Wait="yes" />
+    </Component>
+  </Fragment>
+</Wix>

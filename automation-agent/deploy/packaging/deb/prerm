@@ -1,0 +1,8 @@
+#!/bin/bash
+set -e
+
+# Stop service before removal
+systemctl stop automation-agent.service || true
+systemctl disable automation-agent.service || true
+
+exit 0

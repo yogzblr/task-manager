@@ -1,0 +1,33 @@
+{{- if .Values.quickwit.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "control-plane.name" . }}-quickwit
+  labels:
+    {{- include "control-plane.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quickwit
+  template:
+    metadata:
+      labels:
+        app: quickwit
+    spec:
+      containers:
+      - name: quickwit
+        image: "{{ .Values.quickwit.image.repository }}:{{ .Values.quickwit.image.tag }}"
+        ports:
+        - containerPort: 7280
+          name: http
+        volumeMounts:
+        - name: quickwit-data
+          mountPath: /qwdata
+        resources:
+          {{- toYaml .Values.quickwit.resources | nindent 10 }}
+      volumes:
+      - name: quickwit-data
+        persistentVolumeClaim:
+          claimName: {{ include "control-plane.name" . }}-quickwit-data
+{{- end }}

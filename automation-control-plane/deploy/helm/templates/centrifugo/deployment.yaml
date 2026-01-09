@@ -1,0 +1,29 @@
+{{- if .Values.centrifugo.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "control-plane.name" . }}-centrifugo
+  labels:
+    {{- include "control-plane.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: centrifugo
+  template:
+    metadata:
+      labels:
+        app: centrifugo
+    spec:
+      containers:
+      - name: centrifugo
+        image: "{{ .Values.centrifugo.image.repository }}:{{ .Values.centrifugo.image.tag }}"
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: CENTRIFUGO_API_KEY
+          value: {{ .Values.centrifugo.apiKey | quote }}
+        resources:
+          {{- toYaml .Values.centrifugo.resources | nindent 10 }}
+{{- end }}

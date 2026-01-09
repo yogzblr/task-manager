@@ -1,0 +1,16 @@
+{{- if .Values.centrifugo.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "control-plane.name" . }}-centrifugo
+  labels:
+    {{- include "control-plane.labels" . | nindent 4 }}
+spec:
+  ports:
+  - port: 8000
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: centrifugo
+{{- end }}

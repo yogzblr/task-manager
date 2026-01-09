@@ -1,0 +1,14 @@
+{{- if .Values.quickwit.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "control-plane.name" . }}-quickwit-data
+  labels:
+    {{- include "control-plane.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.quickwit.persistence.size }}
+{{- end }}

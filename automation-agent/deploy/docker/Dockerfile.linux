@@ -1,0 +1,13 @@
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY automation-agent /usr/local/bin/automation-agent
+RUN chmod +x /usr/local/bin/automation-agent
+
+USER nobody
+
+ENTRYPOINT ["/usr/local/bin/automation-agent"]

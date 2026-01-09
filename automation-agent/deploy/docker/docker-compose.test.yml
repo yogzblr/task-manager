@@ -1,0 +1,140 @@
+version: '3.8'
+
+services:
+  # Backend services (from control plane)
+  control-plane:
+    build:
+      context: ../../automation-control-plane
+      dockerfile: deploy/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - MYSQL_DSN=mysql://automation:password@mysql:3306/automation
+      - VALKEY_ADDR=valkey:6379
+      - CENTRIFUGO_URL=http://centrifugo:8000
+      - QUICKWIT_URL=http://quickwit:7280
+      - JWT_SECRET=test-secret-key
+    depends_on:
+      mysql:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+      centrifugo:
+        condition: service_started
+      quickwit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+      - MYSQL_DATABASE=automation
+      - MYSQL_USER=automation
+      - MYSQL_PASSWORD=password
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+      - ../../automation-control-plane/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - test-network
+
+  valkey:
+    image: valkey/valkey:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_test_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - test-network
+
+  centrifugo:
+    image: centrifugo/centrifugo:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./centrifugo.json:/centrifugo/config.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  quickwit:
+    image: quickwit/quickwit:latest
+    ports:
+      - "7280:7280"
+    volumes:
+      - quickwit_test_data:/qwdata
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Linux agent container
+  agent-linux:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.linux
+    environment:
+      - CONTROL_PLANE_URL=http://control-plane:8080
+      - TENANT_ID=test-tenant
+      - PROJECT_ID=test-project
+      - AGENT_ID=agent-linux-01
+      - LOG_LEVEL=debug
+      - JWT_TOKEN=test-token
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  # Windows agent container
+  agent-windows:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.windows
+    platform: windows/amd64
+    environment:
+      - CONTROL_PLANE_URL=http://control-plane:8080
+      - TENANT_ID=test-tenant
+      - PROJECT_ID=test-project
+      - AGENT_ID=agent-windows-01
+      - LOG_LEVEL=debug
+      - JWT_TOKEN=test-token
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    networks:
+      - test-network
+
+volumes:
+  mysql_test_data:
+  valkey_test_data:
+  quickwit_test_data:
+
+networks:
+  test-network:
+    driver: bridge
