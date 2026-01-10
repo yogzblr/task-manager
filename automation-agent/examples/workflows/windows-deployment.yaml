@@ -1,0 +1,44 @@
+name: windows-application-deployment
+timeout: 10m
+tasks:
+  - name: download-installer
+    type: downloadexec
+    config:
+      url: https://releases.example.com/myapp-v1.2.3.exe
+      sha256: abc123def456789...  # Replace with actual SHA256 hash
+      # Optional signature verification
+      # signature: base64_encoded_signature
+      # public_key: base64_encoded_public_key
+      args: ["/silent", "/norestart"]
+      timeout: 5m
+      cleanup: true
+      
+  - name: verify-installation
+    type: powershell
+    config:
+      script: |
+        $app = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | 
+                Where-Object {$_.DisplayName -eq "MyApp"}
+        if ($app) { 
+          Write-Output "Installed: $($app.DisplayVersion)"
+          exit 0
+        } else {
+          Write-Error "Application not installed"
+          exit 1
+        }
+      timeout: 30s
+      
+  - name: start-service
+    type: powershell
+    config:
+      script: |
+        Start-Service -Name "MyAppService"
+        $service = Get-Service -Name "MyAppService"
+        if ($service.Status -eq "Running") {
+          Write-Output "Service started successfully"
+          exit 0
+        } else {
+          Write-Error "Failed to start service"
+          exit 1
+        }
+      timeout: 30s

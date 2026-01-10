@@ -1,0 +1,135 @@
+# Docker Compose configuration optimized for WSL2 Ubuntu
+# This version excludes the Windows agent which requires Windows containers
+
+version: '3.8'
+
+services:
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: automation-control-plane/deploy/docker/Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - MYSQL_DSN=automation:password@tcp(mysql:3306)/automation
+      - VALKEY_ADDR=valkey:6379
+      - CENTRIFUGO_URL=http://centrifugo:8000
+      - QUICKWIT_URL=http://quickwit:7280
+      - JWT_SECRET=change-me-in-production
+    depends_on:
+      mysql:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+      centrifugo:
+        condition: service_started
+      quickwit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automation-network
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+      - MYSQL_DATABASE=automation
+      - MYSQL_USER=automation
+      - MYSQL_PASSWORD=password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../../automation-control-plane/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - automation-network
+
+  valkey:
+    image: valkey/valkey:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - automation-network
+
+  centrifugo:
+    image: centrifugo/centrifugo:v5
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./centrifugo.json:/centrifugo/config.json
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automation-network
+
+  quickwit:
+    image: quickwit/quickwit:latest
+    command: run
+    ports:
+      - "7280:7280"
+    volumes:
+      - quickwit_data:/qwdata
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automation-network
+
+  agent-linux:
+    build:
+      context: ../..
+      dockerfile: automation-control-plane/deploy/docker/Dockerfile.agent-linux
+    environment:
+      - CONTROL_PLANE_URL=http://control-plane:8080
+      - CENTRIFUGO_URL=ws://centrifugo:8000/connection/websocket
+      - TENANT_ID=test-tenant
+      - PROJECT_ID=test-project
+      - AGENT_ID=agent-linux-01
+      - JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZ2VudF9pZCI6ImFnZW50LWxpbnV4LTAxIiwidGVuYW50X2lkIjoidGVzdC10ZW5hbnQiLCJwcm9qZWN0X2lkIjoidGVzdC1wcm9qZWN0IiwiZXhwIjoxNzk5NDk1MDA5LCJpYXQiOjE3Njc5NTkwMDl9.JKQXv4YeRRA46gPU-cJpyV83FC2ZFXxWrR_M1zkuQO0
+      - LOG_LEVEL=debug
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      centrifugo:
+        condition: service_started
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - agent_linux_data:/var/lib/automation-agent
+      - agent_linux_logs:/var/log/automation-agent
+    networks:
+      - automation-network
+    # Alternative: Run directly without systemd (uncomment if systemd has issues)
+    # command: ["/usr/local/bin/automation-agent"]
+
+volumes:
+  mysql_data:
+  valkey_data:
+  quickwit_data:
+  agent_linux_data:
+  agent_linux_logs:
+
+networks:
+  automation-network:
+    driver: bridge

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -76,15 +75,32 @@ func main() {
 	})
 
 	// API routes (protected by auth middleware)
+	// Note: Go 1.21 compatible routing (pattern matching added in Go 1.22)
 	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("POST /jobs", jobsHandler.CreateJob)
-	apiMux.HandleFunc("GET /jobs", jobsHandler.ListJobs)
-	apiMux.HandleFunc("POST /jobs/{id}/lease", jobsHandler.LeaseJob)
-	apiMux.HandleFunc("POST /jobs/{id}/complete", jobsHandler.CompleteJob)
-	apiMux.HandleFunc("GET /projects", projectsHandler.ListProjects)
-	apiMux.HandleFunc("POST /agents/register", agentsHandler.RegisterAgent)
-	apiMux.HandleFunc("POST /agents/{id}/upgrade", agentsHandler.UpgradeAgent)
-	apiMux.HandleFunc("GET /audit/logs", auditHandler.ListAuditLogs)
+	apiMux.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "POST" && r.URL.Path == "/jobs":
+			jobsHandler.CreateJob(w, r)
+		case r.Method == "GET" && r.URL.Path == "/jobs":
+			jobsHandler.ListJobs(w, r)
+		case r.Method == "POST" && len(r.URL.Path) > 12 && r.URL.Path[:12] == "/jobs/" && r.URL.Path[len(r.URL.Path)-6:] == "/lease":
+			jobsHandler.LeaseJob(w, r)
+		case r.Method == "POST" && len(r.URL.Path) > 12 && r.URL.Path[:12] == "/jobs/" && r.URL.Path[len(r.URL.Path)-9:] == "/complete":
+			jobsHandler.CompleteJob(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	apiMux.HandleFunc("/projects", projectsHandler.ListProjects)
+	apiMux.HandleFunc("/agents/register", agentsHandler.RegisterAgent)
+	apiMux.HandleFunc("/agents/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && len(r.URL.Path) > 15 && r.URL.Path[:15] == "/agents/" && r.URL.Path[len(r.URL.Path)-8:] == "/upgrade" {
+			agentsHandler.UpgradeAgent(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+	apiMux.HandleFunc("/audit/logs", auditHandler.ListAuditLogs)
 
 	// Apply auth middleware
 	handler := auth.AuthMiddleware(jwtValidator)(apiMux)

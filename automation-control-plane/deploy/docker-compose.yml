@@ -6,9 +6,9 @@ services:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
-      - MYSQL_DSN=mysql://automation:password@mysql:3306/automation
+      - MYSQL_DSN=automation:password@tcp(mysql:3306)/automation
       - VALKEY_ADDR=valkey:6379
       - CENTRIFUGO_URL=http://centrifugo:8000
       - QUICKWIT_URL=http://quickwit:7280
@@ -80,6 +80,7 @@ services:
 
   quickwit:
     image: quickwit/quickwit:latest
+    command: run
     ports:
       - "7280:7280"
     volumes:
@@ -92,10 +93,63 @@ services:
     networks:
       - automation-network
 
+  agent-linux:
+    build:
+      context: ../..
+      dockerfile: automation-control-plane/deploy/docker/Dockerfile.agent-linux
+    environment:
+      - CONTROL_PLANE_URL=http://control-plane:8080
+      - CENTRIFUGO_URL=ws://centrifugo:8000/connection/websocket
+      - TENANT_ID=test-tenant
+      - PROJECT_ID=test-project
+      - AGENT_ID=agent-linux-01
+      - JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZ2VudF9pZCI6ImFnZW50LWxpbnV4LTAxIiwidGVuYW50X2lkIjoidGVzdC10ZW5hbnQiLCJwcm9qZWN0X2lkIjoidGVzdC1wcm9qZWN0IiwiZXhwIjoxNzk5NDk1MDA5LCJpYXQiOjE3Njc5NTkwMDl9.JKQXv4YeRRA46gPU-cJpyV83FC2ZFXxWrR_M1zkuQO0
+      - LOG_LEVEL=debug
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      centrifugo:
+        condition: service_started
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - agent_linux_data:/var/lib/automation-agent
+      - agent_linux_logs:/var/log/automation-agent
+    networks:
+      - automation-network
+    # Alternative: Run directly without systemd (simpler for Docker)
+    # Uncomment the line below and remove privileged/volumes if systemd doesn't work
+    # command: ["/usr/local/bin/automation-agent"]
+
+  agent-windows:
+    build:
+      context: ../..
+      dockerfile: automation-control-plane/deploy/docker/Dockerfile.agent-windows
+    platform: windows/amd64
+    environment:
+      - CONTROL_PLANE_URL=http://control-plane:8080
+      - CENTRIFUGO_URL=ws://centrifugo:8000/connection/websocket
+      - TENANT_ID=test-tenant
+      - PROJECT_ID=test-project
+      - AGENT_ID=agent-windows-01
+      - JWT_TOKEN=test-token
+      - LOG_LEVEL=debug
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      centrifugo:
+        condition: service_started
+    networks:
+      - automation-network
+    # Note: Windows containers require Windows container support
+    # The agent will run directly (Windows service installation in containers is complex)
+
 volumes:
   mysql_data:
   valkey_data:
   quickwit_data:
+  agent_linux_data:
+  agent_linux_logs:
 
 networks:
   automation-network:

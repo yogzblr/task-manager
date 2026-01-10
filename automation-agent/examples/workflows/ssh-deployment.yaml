@@ -1,0 +1,34 @@
+name: linux-deployment
+timeout: 5m
+tasks:
+  - name: upload-config
+    type: ssh
+    config:
+      host: server.example.com
+      port: 22
+      user: deploy
+      key: /root/.ssh/id_rsa
+      upload:
+        local: /tmp/config.yaml
+        remote: /etc/myapp/config.yaml
+      timeout: 60s
+        
+  - name: restart-service
+    type: ssh
+    config:
+      host: server.example.com
+      port: 22
+      user: deploy
+      key: /root/.ssh/id_rsa
+      command: sudo systemctl restart myapp
+      timeout: 30s
+      
+  - name: verify-service
+    type: ssh
+    config:
+      host: server.example.com
+      port: 22
+      user: deploy
+      key: /root/.ssh/id_rsa
+      command: sudo systemctl status myapp
+      timeout: 10s

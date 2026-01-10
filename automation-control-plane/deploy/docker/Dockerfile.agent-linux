@@ -1,0 +1,111 @@
+FROM golang:1.21 AS builder
+
+WORKDIR /build
+
+# Copy agent source
+COPY automation-agent/go.mod ./
+# Copy go.sum if it exists (optional)
+COPY automation-agent/go.sum* ./
+# Download dependencies
+RUN go mod download
+
+# Copy all source code
+COPY automation-agent .
+
+# Generate go.sum if missing and build
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o automation-agent ./cmd/agent
+
+FROM ubuntu:22.04
+
+# Install systemd and dependencies
+RUN apt-get update && apt-get install -y \
+    systemd \
+    systemd-sysv \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /lib/systemd/system/multi-user.target.wants/* \
+    /etc/systemd/system/*.wants/* \
+    /lib/systemd/system/local-fs.target.wants/* \
+    /lib/systemd/system/sockets.target.wants/*udev* \
+    /lib/systemd/system/sockets.target.wants/*initctl* \
+    /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup* \
+    /lib/systemd/system/systemd-update-utmp*
+
+# Copy agent binary
+COPY --from=builder /build/automation-agent /usr/local/bin/automation-agent
+RUN chmod +x /usr/local/bin/automation-agent
+
+# Create directories
+RUN mkdir -p /var/lib/automation-agent /var/log/automation-agent /etc/sysconfig
+
+# Create systemd service file
+RUN echo '[Unit]\n\
+Description=Automation Agent\n\
+After=network.target\n\
+\n\
+[Service]\n\
+Type=simple\n\
+ExecStart=/usr/local/bin/automation-agent\n\
+Restart=always\n\
+RestartSec=5\n\
+EnvironmentFile=-/etc/sysconfig/automation-agent\n\
+\n\
+[Install]\n\
+WantedBy=multi-user.target' > /etc/systemd/system/automation-agent.service
+
+# Create config file template
+RUN echo 'CONTROL_PLANE_URL=http://control-plane:8080' > /etc/sysconfig/automation-agent && \
+    echo 'TENANT_ID=test-tenant' >> /etc/sysconfig/automation-agent && \
+    echo 'PROJECT_ID=test-project' >> /etc/sysconfig/automation-agent && \
+    echo 'AGENT_ID=agent-linux-01' >> /etc/sysconfig/automation-agent && \
+    echo 'JWT_TOKEN=test-token' >> /etc/sysconfig/automation-agent && \
+    echo 'LOG_LEVEL=info' >> /etc/sysconfig/automation-agent
+
+# Create entrypoint script that can run with or without systemd
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Update config from environment variables\n\
+if [ -n "$CONTROL_PLANE_URL" ]; then\n\
+    sed -i "s|CONTROL_PLANE_URL=.*|CONTROL_PLANE_URL=$CONTROL_PLANE_URL|" /etc/sysconfig/automation-agent\n\
+fi\n\
+if [ -n "$TENANT_ID" ]; then\n\
+    sed -i "s|TENANT_ID=.*|TENANT_ID=$TENANT_ID|" /etc/sysconfig/automation-agent\n\
+fi\n\
+if [ -n "$PROJECT_ID" ]; then\n\
+    sed -i "s|PROJECT_ID=.*|PROJECT_ID=$PROJECT_ID|" /etc/sysconfig/automation-agent\n\
+fi\n\
+if [ -n "$AGENT_ID" ]; then\n\
+    sed -i "s|AGENT_ID=.*|AGENT_ID=$AGENT_ID|" /etc/sysconfig/automation-agent\n\
+fi\n\
+if [ -n "$JWT_TOKEN" ]; then\n\
+    sed -i "s|JWT_TOKEN=.*|JWT_TOKEN=$JWT_TOKEN|" /etc/sysconfig/automation-agent\n\
+fi\n\
+if [ -n "$LOG_LEVEL" ]; then\n\
+    sed -i "s|LOG_LEVEL=.*|LOG_LEVEL=$LOG_LEVEL|" /etc/sysconfig/automation-agent\n\
+fi\n\
+\n\
+# Try to use systemd if available, otherwise run directly\n\
+if [ -d /run/systemd/system ]; then\n\
+    # Enable and start service via systemd\n\
+    systemctl daemon-reload\n\
+    systemctl enable automation-agent.service\n\
+    systemctl start automation-agent.service\n\
+    # Keep container running\n\
+    exec /lib/systemd/systemd --system\n\
+else\n\
+    # Run directly without systemd\n\
+    source /etc/sysconfig/automation-agent\n\
+    exec /usr/local/bin/automation-agent\n\
+fi' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+# Set environment variables (can be overridden)
+ENV CONTROL_PLANE_URL=http://control-plane:8080
+ENV TENANT_ID=test-tenant
+ENV PROJECT_ID=test-project
+ENV AGENT_ID=agent-linux-01
+ENV LOG_LEVEL=info
+
+# Use entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]

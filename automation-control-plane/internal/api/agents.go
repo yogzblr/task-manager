@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/automation-platform/control-plane/internal/auth"
 	"github.com/automation-platform/control-plane/internal/store/mysql"
@@ -81,7 +82,17 @@ func (h *AgentsHandler) UpgradeAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentID := r.PathValue("id")
+	// Extract agent ID from path (Go 1.21 compatible)
+	// Path format: /api/agents/{id}/upgrade
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	var agentID string
+	for i, part := range parts {
+		if part == "agents" && i+1 < len(parts) {
+			agentID = parts[i+1]
+			break
+		}
+	}
 	if agentID == "" {
 		http.Error(w, "agent_id required", http.StatusBadRequest)
 		return

@@ -1,0 +1,8 @@
+# Centrifugo environment variables configuration
+# Try using environment variables instead of config file
+CENTRIFUGO_TOKEN_HMAC_SECRET_KEY=change-me-in-production
+CENTRIFUGO_ADMIN=true
+CENTRIFUGO_ADMIN_PASSWORD=password
+CENTRIFUGO_ADMIN_SECRET=change-me-in-production
+CENTRIFUGO_API_KEY=change-me-in-production
+CENTRIFUGO_ALLOWED_ORIGINS=*

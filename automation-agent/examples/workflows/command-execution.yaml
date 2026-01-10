@@ -1,0 +1,23 @@
+name: local-command-execution
+timeout: 2m
+tasks:
+  - name: check-disk-space
+    type: command
+    config:
+      command: df
+      args: ["-h", "/"]
+      timeout: 10s
+      
+  - name: list-processes
+    type: command
+    config:
+      command: ps aux | grep myapp
+      shell: true
+      timeout: 10s
+      
+  - name: create-backup
+    type: command
+    config:
+      command: tar
+      args: ["-czf", "/backup/myapp-backup.tar.gz", "/var/lib/myapp"]
+      timeout: 2m

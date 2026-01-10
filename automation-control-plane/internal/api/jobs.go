@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/automation-platform/control-plane/internal/auth"
@@ -105,8 +106,17 @@ func (h *JobsHandler) LeaseJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract job ID from path
-	jobID := r.PathValue("id")
+	// Extract job ID from path (Go 1.21 compatible)
+	// Path format: /api/jobs/{id}/lease
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	var jobID string
+	for i, part := range parts {
+		if part == "jobs" && i+1 < len(parts) {
+			jobID = parts[i+1]
+			break
+		}
+	}
 	if jobID == "" {
 		http.Error(w, "job_id required", http.StatusBadRequest)
 		return
@@ -157,7 +167,16 @@ func (h *JobsHandler) CompleteJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobID := r.PathValue("id")
+	// Extract job ID from path (Go 1.21 compatible)
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+	var jobID string
+	for i, part := range parts {
+		if part == "jobs" && i+1 < len(parts) {
+			jobID = parts[i+1]
+			break
+		}
+	}
 	if jobID == "" {
 		http.Error(w, "job_id required", http.StatusBadRequest)
 		return

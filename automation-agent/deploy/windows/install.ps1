@@ -42,20 +42,18 @@ if (Test-Path ".\$BinaryName") {
     exit 1
 }
 
-# Create configuration file
-$ConfigFile = "$ConfigDir\config.yaml"
-if (-not (Test-Path $ConfigFile)) {
-    Write-Host "Creating configuration file..."
-    $config = @"
-control_plane_url: $ControlPlaneUrl
-tenant_id: $TenantId
-project_id: $ProjectId
-agent_id: $AgentId
-jwt_token: $JwtToken
-log_level: info
+# Create environment file for service
+$EnvFile = "$ConfigDir\service-env.txt"
+Write-Host "Creating environment configuration..."
+$envConfig = @"
+CONTROL_PLANE_URL=$ControlPlaneUrl
+TENANT_ID=$TenantId
+PROJECT_ID=$ProjectId
+AGENT_ID=$AgentId
+JWT_TOKEN=$JwtToken
+LOG_LEVEL=info
 "@
-    Set-Content -Path $ConfigFile -Value $config
-}
+Set-Content -Path $EnvFile -Value $envConfig
 
 # Install Windows service
 Write-Host "Installing Windows service..."
@@ -66,7 +64,31 @@ if ($service) {
     Start-Sleep -Seconds 2
 }
 
-$binPath = "$InstallDir\$BinaryName"
+# Set up environment variables for the service
+$env:CONTROL_PLANE_URL = $ControlPlaneUrl
+$env:TENANT_ID = $TenantId
+$env:PROJECT_ID = $ProjectId
+$env:AGENT_ID = $AgentId
+$env:JWT_TOKEN = $JwtToken
+$env:LOG_LEVEL = "info"
+
+# Create service with environment variables embedded in the binary path
+# Windows services don't directly support environment files, so we'll use a wrapper approach
+$wrapperScript = @"
+@echo off
+setlocal
+set CONTROL_PLANE_URL=$ControlPlaneUrl
+set TENANT_ID=$TenantId
+set PROJECT_ID=$ProjectId
+set AGENT_ID=$AgentId
+set JWT_TOKEN=$JwtToken
+set LOG_LEVEL=info
+"%~dp0$BinaryName"
+"@
+$wrapperPath = "$InstallDir\start-agent.cmd"
+Set-Content -Path $wrapperPath -Value $wrapperScript
+
+$binPath = $wrapperPath
 New-Service -Name $ServiceName `
     -DisplayName $DisplayName `
     -BinaryPathName $binPath `

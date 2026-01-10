@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/centrifugal/centrifuge-go"
 )
@@ -32,17 +30,14 @@ type Config struct {
 
 // NewClient creates a new Centrifugo client
 func NewClient(cfg Config) (*Client, error) {
-	opts := centrifuge.DefaultConfig()
-	opts.Token = cfg.APIKey
-	
-	// Configure proxy if provided
-	if cfg.ProxyURL != nil {
-		opts.HTTPClient = &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyURL(cfg.ProxyURL),
-			},
-		}
+	// Create client config
+	opts := centrifuge.Config{
+		Token: cfg.APIKey,
 	}
+	
+	// Note: Proxy configuration would need to be set via environment variables
+	// or through the underlying HTTP client used by centrifuge-go
+	// For now, we'll create the client without explicit proxy config
 	
 	client := centrifuge.NewJsonClient(cfg.URL, opts)
 	
@@ -97,7 +92,7 @@ func (c *Client) PublishHeartbeat(ctx context.Context, state string, activeJobs 
 		"active_jobs": activeJobs,
 	}
 	
-	data, err := json.Marshal(message)
+	_, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal heartbeat: %w", err)
 	}

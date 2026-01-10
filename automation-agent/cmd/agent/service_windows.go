@@ -6,11 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"

@@ -13,12 +13,7 @@ import (
 	"github.com/automation-platform/agent/internal/agent"
 	"github.com/automation-platform/agent/internal/centrifugo"
 	"github.com/automation-platform/agent/internal/controlplane"
-	"github.com/automation-platform/agent/internal/plugins/downloadexec"
-	"github.com/automation-platform/agent/internal/plugins/exec"
-	"github.com/automation-platform/agent/internal/plugins/powershell"
-	"github.com/automation-platform/agent/internal/probe"
-	"github.com/automation-platform/agent/internal/security"
-	"github.com/automation-platform/agent/internal/workflow"
+	"github.com/yogzblr/probe"
 )
 
 func main() {
@@ -61,16 +56,8 @@ func main() {
 		log.Fatalf("Failed to create Centrifugo client: %v", err)
 	}
 	
-	// Initialize plugins
-	registry := probe.NewPluginRegistry()
-	registry.Register(exec.New())
-	registry.Register(powershell.New())
-	
-	verifier := security.NewVerifier()
-	registry.Register(downloadexec.New(verifier))
-	
-	// Initialize workflow executor
-	executor := workflow.NewExecutor(registry)
+	// Initialize probe executor with all built-in tasks
+	probeExecutor := probe.New()
 	
 	// Start agent
 	ctx, cancel := context.WithCancel(context.Background())
@@ -98,9 +85,9 @@ func main() {
 	
 	// Start message handler
 	handler := &MessageHandler{
-		agent:    ag,
-		cpClient: cpClient,
-		executor: executor,
+		agent:         ag,
+		cpClient:      cpClient,
+		probeExecutor: probeExecutor,
 	}
 	
 	if err := centClient.StartMessageLoop(ctx, handler); err != nil {
@@ -133,9 +120,9 @@ func main() {
 
 // MessageHandler handles Centrifugo messages
 type MessageHandler struct {
-	agent    *agent.Agent
-	cpClient *controlplane.Client
-	executor *workflow.Executor
+	agent         *agent.Agent
+	cpClient      *controlplane.Client
+	probeExecutor *probe.Probe
 }
 
 func (h *MessageHandler) HandleJobAvailable(jobID string) {
@@ -159,26 +146,36 @@ func (h *MessageHandler) HandleJobAvailable(jobID string) {
 		log.Printf("Failed to transition to executing: %v", err)
 	}
 	
-	// Parse and execute workflow
-	workflow, err := workflow.ParseWorkflow(job.Payload)
-	if err != nil {
-		log.Printf("Failed to parse workflow: %v", err)
-		h.cpClient.CompleteJob(ctx, job.JobID, false)
-		h.agent.StateMachine.Transition(agent.StateIdle)
-		return
-	}
+	// Transition to reporting state
+	h.agent.StateMachine.Transition(agent.StateReporting)
 	
-	// Execute workflow
-	results, err := h.executor.Execute(ctx, workflow)
-	success := err == nil && len(results) > 0 && results[len(results)-1].Success
+	// Execute workflow using probe (job.Payload is now expected to be YAML)
+	results, err := h.probeExecutor.ExecuteYAML(ctx, job.Payload)
 	
 	// Complete job
+	success := err == nil && results.Success
+	output := formatProbeResults(results, err)
 	h.cpClient.CompleteJob(ctx, job.JobID, success)
 	
 	// Transition back to idle
 	if err := h.agent.StateMachine.Transition(agent.StateIdle); err != nil {
 		log.Printf("Failed to transition to idle: %v", err)
 	}
+}
+
+// formatProbeResults formats probe execution results for API
+func formatProbeResults(results *probe.WorkflowResult, err error) string {
+	if err != nil {
+		return fmt.Sprintf("Execution failed: %v", err)
+	}
+	
+	// Marshal results to JSON for API
+	data, marshalErr := json.Marshal(results)
+	if marshalErr != nil {
+		return fmt.Sprintf("Execution completed but failed to marshal results: %v", marshalErr)
+	}
+	
+	return string(data)
 }
 
 func (h *MessageHandler) HandleCancelJob(jobID string) {
