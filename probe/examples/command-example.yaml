@@ -1,0 +1,22 @@
+name: command-example
+tasks:
+  - name: echo-test
+    type: command
+    config:
+      command: echo
+      args: ["Hello from probe!"]
+      timeout: 5s
+
+  - name: list-current-directory
+    type: command
+    config:
+      command: ls
+      shell: true
+      timeout: 5s
+
+  - name: date-command
+    type: command
+    config:
+      command: date
+      shell: true
+      timeout: 5s

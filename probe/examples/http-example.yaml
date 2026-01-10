@@ -1,0 +1,27 @@
+name: http-example
+tasks:
+  - name: check-httpbin
+    type: http
+    config:
+      url: https://httpbin.org/status/200
+      method: GET
+      expected_status: [200]
+      timeout: 10s
+
+  - name: check-httpbin-404
+    type: http
+    config:
+      url: https://httpbin.org/status/404
+      method: GET
+      expected_status: [404]
+      timeout: 10s
+
+  - name: check-github-api
+    type: http
+    config:
+      url: https://api.github.com
+      method: GET
+      expected_status: [200]
+      headers:
+        User-Agent: Probe-Test/1.0
+      timeout: 10s
