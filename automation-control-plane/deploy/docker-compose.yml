@@ -162,7 +162,7 @@ services:
       - TENANT_ID=test-tenant
       - PROJECT_ID=test-project
       - AGENT_ID=agent-windows-01
-      - JWT_TOKEN=test-token
+      - JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ2VudC13aW5kb3dzLTAxIiwiYWdlbnRfaWQiOiJhZ2VudC13aW5kb3dzLTAxIiwidGVuYW50X2lkIjoidGVzdC10ZW5hbnQiLCJwcm9qZWN0X2lkIjoidGVzdC1wcm9qZWN0IiwiY2hhbm5lbHMiOlsiYWdlbnRzLnRlc3QtdGVuYW50LmFnZW50LXdpbmRvd3MtMDEiXSwiZXhwIjoxNzk5NjYyMjI0LCJpYXQiOjE3NjgxMjYyMjR9.Cg7XAFvTzWuc7CxF6CQ0Lzf_EeJVEqb5XOn-PiKLNrY
       - LOG_LEVEL=debug
     depends_on:
       control-plane:
