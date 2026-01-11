@@ -76,23 +76,27 @@ func main() {
 	}); err != nil {
 		log.Fatalf("Failed to register agent: %v", err)
 	}
-	
-	// Connect to Centrifugo
-	if err := centClient.Connect(ctx); err != nil {
-		log.Fatalf("Failed to connect to Centrifugo: %v", err)
-	}
-	defer centClient.Disconnect()
-	
-	// Start message handler
+
+	// Create message handler
 	handler := &MessageHandler{
 		agent:         ag,
 		cpClient:      cpClient,
 		probeExecutor: probeExecutor,
 	}
-	
+
+	// IMPORTANT: Set up message handlers BEFORE connecting
+	// This ensures OnPublication is configured when server-side subscriptions are established
+	log.Printf("[Agent] Setting up Centrifugo message handlers")
 	if err := centClient.StartMessageLoop(ctx, handler); err != nil {
 		log.Fatalf("Failed to start message loop: %v", err)
 	}
+
+	// Now connect to Centrifugo - server will auto-subscribe us based on JWT channels claim
+	log.Printf("[Agent] Connecting to Centrifugo")
+	if err := centClient.Connect(ctx); err != nil {
+		log.Fatalf("Failed to connect to Centrifugo: %v", err)
+	}
+	defer centClient.Disconnect()
 	
 	// Start heartbeat loop
 	go func() {
