@@ -87,8 +87,7 @@ func (c *Client) setupConnectionHandlers() {
 
 	// Handle server-side unsubscription events
 	c.client.OnUnsubscribed(func(e centrifuge.ServerUnsubscribedEvent) {
-		log.Printf("[Centrifugo] Unsubscribed from server-side channel: %s (code: %d, reason: %s)",
-			e.Channel, e.Code, e.Reason)
+		log.Printf("[Centrifugo] Unsubscribed from server-side channel: %s", e.Channel)
 	})
 }
 
@@ -152,20 +151,31 @@ type MessageHandler interface {
 // StartMessageLoop starts the message handling loop
 func (c *Client) StartMessageLoop(ctx context.Context, handler MessageHandler) error {
 	return c.Subscribe(func(data []byte) {
+		log.Printf("[Centrifugo] Received message data: %s", string(data))
+		
 		var msg map[string]interface{}
 		if err := json.Unmarshal(data, &msg); err != nil {
+			log.Printf("[Centrifugo] Failed to unmarshal message: %v", err)
 			return
 		}
 		
+		log.Printf("[Centrifugo] Parsed message: %+v", msg)
+		
 		msgType, ok := msg["type"].(string)
 		if !ok {
+			log.Printf("[Centrifugo] Message has no 'type' field or it's not a string")
 			return
 		}
+		
+		log.Printf("[Centrifugo] Message type: %s", msgType)
 		
 		switch msgType {
 		case "job_available":
 			if jobID, ok := msg["job_id"].(string); ok {
+				log.Printf("[Centrifugo] Handling job_available for job: %s", jobID)
 				handler.HandleJobAvailable(jobID)
+			} else {
+				log.Printf("[Centrifugo] job_available message missing job_id")
 			}
 		case "cancel_job":
 			if jobID, ok := msg["job_id"].(string); ok {

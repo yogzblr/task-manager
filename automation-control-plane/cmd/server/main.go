@@ -11,6 +11,7 @@ import (
 
 	"github.com/automation-platform/control-plane/internal/api"
 	"github.com/automation-platform/control-plane/internal/auth"
+	"github.com/automation-platform/control-plane/internal/centrifugo"
 	"github.com/automation-platform/control-plane/internal/store/mysql"
 	"github.com/automation-platform/control-plane/internal/store/redis"
 )
@@ -22,6 +23,8 @@ func main() {
 	mysqlDSN := getEnv("MYSQL_DSN", "automation:password@tcp(localhost:3306)/automation")
 	redisAddr := getEnv("VALKEY_ADDR", "localhost:6379")
 	jwtSecret := getEnv("JWT_SECRET", "change-me-in-production")
+	centrifugoURL := getEnv("CENTRIFUGO_URL", "http://localhost:8000")
+	centrifugoAPIKey := getEnv("CENTRIFUGO_API_KEY", "change-me-in-production")
 	port := getEnv("PORT", "8080")
 
 	// Initialize MySQL store
@@ -48,6 +51,13 @@ func main() {
 	}
 	defer redisStore.Close()
 
+	// Initialize Centrifugo client
+	centrifugoClient := centrifugo.NewClient(centrifugo.Config{
+		URL:    centrifugoURL,
+		APIKey: centrifugoAPIKey,
+	})
+	log.Printf("Initialized Centrifugo client with URL: %s", centrifugoURL)
+
 	// Initialize auth
 	jwtValidator := auth.NewJWTValidator(jwtSecret)
 	
@@ -60,7 +70,7 @@ func main() {
 	rbacAuthorizer := auth.NewRBACAuthorizer(projectRolesGetter)
 
 	// Initialize API handlers
-	jobsHandler := api.NewJobsHandler(mysqlStore, rbacAuthorizer)
+	jobsHandler := api.NewJobsHandler(mysqlStore, rbacAuthorizer, centrifugoClient)
 	projectsHandler := api.NewProjectsHandler(mysqlStore, rbacAuthorizer)
 	agentsHandler := api.NewAgentsHandler(mysqlStore, rbacAuthorizer)
 	auditHandler := api.NewAuditHandler(mysqlStore, rbacAuthorizer)
@@ -77,16 +87,31 @@ func main() {
 	// API routes (protected by auth middleware)
 	// Note: Go 1.21 compatible routing (pattern matching added in Go 1.22)
 	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("/jobs/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[Router] %s %s", r.Method, r.URL.Path)
 		switch {
 		case r.Method == "POST" && r.URL.Path == "/jobs":
 			jobsHandler.CreateJob(w, r)
 		case r.Method == "GET" && r.URL.Path == "/jobs":
 			jobsHandler.ListJobs(w, r)
-		case r.Method == "POST" && len(r.URL.Path) > 12 && r.URL.Path[:12] == "/jobs/" && r.URL.Path[len(r.URL.Path)-6:] == "/lease":
+		case r.Method == "POST" && len(r.URL.Path) > 13 && r.URL.Path[:6] == "/jobs/" && r.URL.Path[len(r.URL.Path)-6:] == "/lease":
+			log.Printf("[Router] Matched lease endpoint")
 			jobsHandler.LeaseJob(w, r)
-		case r.Method == "POST" && len(r.URL.Path) > 12 && r.URL.Path[:12] == "/jobs/" && r.URL.Path[len(r.URL.Path)-9:] == "/complete":
+		case r.Method == "POST" && len(r.URL.Path) > 16 && r.URL.Path[:6] == "/jobs/" && r.URL.Path[len(r.URL.Path)-9:] == "/complete":
+			log.Printf("[Router] Matched complete endpoint")
 			jobsHandler.CompleteJob(w, r)
+		default:
+			log.Printf("[Router] No match found for %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	})
+	apiMux.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[Router] %s %s (exact match)", r.Method, r.URL.Path)
+		switch {
+		case r.Method == "POST":
+			jobsHandler.CreateJob(w, r)
+		case r.Method == "GET":
+			jobsHandler.ListJobs(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -104,7 +129,14 @@ func main() {
 
 	// Apply auth middleware
 	handler := auth.AuthMiddleware(jwtValidator)(apiMux)
-	mux.Handle("/api/", http.StripPrefix("/api", handler))
+	
+	// Logging middleware
+	loggedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("[Main] Incoming request: %s %s", r.Method, r.URL.Path)
+		handler.ServeHTTP(w, r)
+	})
+	
+	mux.Handle("/api/", http.StripPrefix("/api", loggedHandler))
 
 	// Start server
 	server := &http.Server{

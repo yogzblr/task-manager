@@ -76,6 +76,12 @@ func main() {
 	}); err != nil {
 		log.Fatalf("Failed to register agent: %v", err)
 	}
+	
+	// Transition to idle state after successful registration
+	if err := ag.StateMachine.Transition(agent.StateIdle); err != nil {
+		log.Fatalf("Failed to transition to idle: %v", err)
+	}
+	log.Printf("[Agent] Successfully registered and transitioned to idle state")
 
 	// Create message handler
 	handler := &MessageHandler{
@@ -131,33 +137,62 @@ type MessageHandler struct {
 
 func (h *MessageHandler) HandleJobAvailable(jobID string) {
 	ctx := context.Background()
+	log.Printf("[Agent] HandleJobAvailable called for job: %s", jobID)
 	
 	// Transition to leasing state
+	log.Printf("[Agent] Attempting transition to leasing state")
 	if err := h.agent.StateMachine.Transition(agent.StateLeasing); err != nil {
-		log.Printf("Failed to transition to leasing: %v", err)
+		log.Printf("[Agent] Failed to transition to leasing: %v", err)
 		return
 	}
+	log.Printf("[Agent] Successfully transitioned to leasing state")
 	
 	// Try to lease the job
-	job, err := h.cpClient.LeaseJob(ctx)
-	if err != nil || job == nil {
+	log.Printf("[Agent] Attempting to lease job: %s", jobID)
+	job, err := h.cpClient.LeaseJob(ctx, jobID)
+	if err != nil {
+		log.Printf("[Agent] Failed to lease job: %v", err)
 		h.agent.StateMachine.Transition(agent.StateIdle)
 		return
 	}
+	if job == nil {
+		log.Printf("[Agent] LeaseJob returned nil (job already leased by another agent)")
+		h.agent.StateMachine.Transition(agent.StateIdle)
+		return
+	}
+	log.Printf("[Agent] Successfully leased job: %s", jobID)
 	
 	// Transition to executing
 	if err := h.agent.StateMachine.Transition(agent.StateExecuting); err != nil {
 		log.Printf("Failed to transition to executing: %v", err)
 	}
 	
-	// Execute workflow using probe (job.Payload is now expected to be YAML)
-	results, err := h.probeExecutor.ExecuteYAML(ctx, job.Payload)
+	// Decode the JSON-encoded workflow string from the payload
+	// The database stores workflow as a JSON string, so we need to unmarshal it first
+	var workflowYAML string
+	if err := json.Unmarshal(job.Payload, &workflowYAML); err != nil {
+		log.Printf("[Agent] Failed to unmarshal workflow from payload: %v", err)
+		output := fmt.Sprintf("Failed to decode workflow: %v", err)
+		h.cpClient.CompleteJob(ctx, job.JobID, false)
+		h.agent.StateMachine.Transition(agent.StateIdle)
+		log.Printf("Job %s completed with output: %s", job.JobID, output)
+		return
+	}
+	
+	log.Printf("[Agent] Decoded workflow YAML: %s", workflowYAML)
+	
+	// Execute workflow using probe
+	results, err := h.probeExecutor.ExecuteYAML(ctx, []byte(workflowYAML))
 	
 	// Complete job
 	success := err == nil && results.Success
 	output := formatProbeResults(results, err)
 	log.Printf("Job %s completed with output: %s", job.JobID, output)
-	h.cpClient.CompleteJob(ctx, job.JobID, success)
+	if err := h.cpClient.CompleteJob(ctx, job.JobID, success); err != nil {
+		log.Printf("[Agent] Failed to complete job: %v", err)
+	} else {
+		log.Printf("[Agent] Successfully notified control plane of job completion")
+	}
 	
 	// Transition back to idle
 	if err := h.agent.StateMachine.Transition(agent.StateIdle); err != nil {

@@ -10,16 +10,16 @@ import (
 
 // Job represents a job in the database
 type Job struct {
-	JobID         string
-	TenantID      string
-	ProjectID     string
-	State         string
-	LeaseOwner    *string
-	LeaseExpiresAt *time.Time
-	Payload       json.RawMessage
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	CompletedAt   *time.Time
+	JobID          string          `json:"job_id"`
+	TenantID       string          `json:"tenant_id"`
+	ProjectID      string          `json:"project_id"`
+	State          string          `json:"state"`
+	LeaseOwner     *string         `json:"lease_owner,omitempty"`
+	LeaseExpiresAt *time.Time      `json:"lease_expires_at,omitempty"`
+	Payload        json.RawMessage `json:"payload"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	CompletedAt    *time.Time      `json:"completed_at,omitempty"`
 }
 
 // CreateJob creates a new job

@@ -8,9 +8,10 @@ services:
     ports:
       - "8081:8080"
     environment:
-      - MYSQL_DSN=automation:password@tcp(mysql:3306)/automation
+      - MYSQL_DSN=automation:password@tcp(mysql:3306)/automation?parseTime=true
       - VALKEY_ADDR=valkey:6379
       - CENTRIFUGO_URL=http://centrifugo:8000
+      - CENTRIFUGO_API_KEY=change-me-in-production
       - QUICKWIT_URL=http://quickwit:7280
       - JWT_SECRET=change-me-in-production
       - LOG_LEVEL=debug

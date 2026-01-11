@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -85,9 +86,12 @@ type LeaseJobResponse struct {
 	Payload   json.RawMessage `json:"payload"`
 }
 
-// LeaseJob attempts to lease a job
-func (c *Client) LeaseJob(ctx context.Context) (*LeaseJobResponse, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/api/jobs/lease", nil)
+// LeaseJob attempts to lease a specific job
+func (c *Client) LeaseJob(ctx context.Context, jobID string) (*LeaseJobResponse, error) {
+	url := fmt.Sprintf("%s/api/jobs/%s/lease", c.baseURL, jobID)
+	log.Printf("[ControlPlaneClient] Attempting to lease job from URL: %s", url)
+	
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -96,9 +100,12 @@ func (c *Client) LeaseJob(ctx context.Context) (*LeaseJobResponse, error) {
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		log.Printf("[ControlPlaneClient] Request error: %v", err)
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
+
+	log.Printf("[ControlPlaneClient] Response status: %d", resp.StatusCode)
 
 	if resp.StatusCode == http.StatusNoContent {
 		// No job available
@@ -107,6 +114,7 @@ func (c *Client) LeaseJob(ctx context.Context) (*LeaseJobResponse, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[ControlPlaneClient] Error response body: %s", string(body))
 		return nil, fmt.Errorf("lease failed: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
@@ -132,6 +140,7 @@ func (c *Client) CompleteJob(ctx context.Context, jobID string, success bool) er
 	}
 
 	url := fmt.Sprintf("%s/api/jobs/%s/complete", c.baseURL, jobID)
+	log.Printf("[ControlPlaneClient] Attempting to complete job %s (success=%v) at URL: %s", jobID, success, url)
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -142,14 +151,18 @@ func (c *Client) CompleteJob(ctx context.Context, jobID string, success bool) er
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		log.Printf("[ControlPlaneClient] Failed to send complete request: %v", err)
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	log.Printf("[ControlPlaneClient] Complete job response status: %d", resp.StatusCode)
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[ControlPlaneClient] Complete job error response: %s", string(body))
 		return fmt.Errorf("completion failed: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
+	log.Printf("[ControlPlaneClient] Successfully completed job %s", jobID)
 	return nil
 }

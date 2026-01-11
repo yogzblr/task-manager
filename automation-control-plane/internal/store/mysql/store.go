@@ -105,6 +105,12 @@ func (qb *QueryBuilder) ValidateTenantProject(projectID string) error {
 		return fmt.Errorf("tenant_id is required")
 	}
 	
+	// If projectID is empty and we have authorized projects, allow it
+	// The WHERE clause will filter by authorized projects
+	if projectID == "" && len(qb.authorizedProjects) > 0 {
+		return nil
+	}
+	
 	if len(qb.authorizedProjects) > 0 {
 		authorized := false
 		for _, pid := range qb.authorizedProjects {
