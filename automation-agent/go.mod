@@ -1,6 +1,6 @@
 module github.com/automation-platform/agent
 
-go 1.18
+go 1.21
 
 require (
 	github.com/centrifugal/centrifuge-go v0.10.2
@@ -28,7 +28,7 @@ require (
 	github.com/segmentio/encoding v0.3.6 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	golang.org/x/crypto v0.19.0 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
