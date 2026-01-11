@@ -1,5 +1,5 @@
 # Build stage - use Linux to cross-compile for Windows
-FROM --platform=linux/amd64 golang:1.21 AS builder
+FROM --platform=linux/amd64 golang:1.24 AS builder
 
 WORKDIR /build
 
