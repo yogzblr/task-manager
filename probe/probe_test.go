@@ -2,31 +2,41 @@ package probe
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
 func TestProbeHTTPTask(t *testing.T) {
+	// Create a test HTTP server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
+	defer server.Close()
+
 	p := New()
-	
-	yaml := `
+
+	yaml := fmt.Sprintf(`
 name: test-http
 tasks:
-  - name: check-google
+  - name: check-test-server
     type: http
     config:
-      url: https://www.google.com
+      url: %s
       expected_status: [200]
-`
-	
+`, server.URL)
+
 	result, err := p.ExecuteYAML(context.Background(), []byte(yaml))
 	if err != nil {
 		t.Fatalf("Execution failed: %v", err)
 	}
-	
+
 	if !result.Success {
 		t.Errorf("Expected success, got failure")
 	}
-	
+
 	if len(result.Tasks) != 1 {
 		t.Errorf("Expected 1 task result, got %d", len(result.Tasks))
 	}
