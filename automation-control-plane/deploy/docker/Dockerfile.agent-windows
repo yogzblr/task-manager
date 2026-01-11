@@ -1,30 +1,38 @@
 # Build stage - use Linux to cross-compile for Windows
-FROM golang:1.21 AS builder
+FROM --platform=linux/amd64 golang:1.21 AS builder
 
 WORKDIR /build
 
-# Copy agent source
-COPY automation-agent/go.mod ./
+# Copy probe module first (since agent depends on it)
+COPY probe ./probe
+
+# Copy agent go.mod and fix the replace directive
+COPY automation-agent/go.mod ./go.mod.orig
+RUN cat go.mod.orig | sed 's|replace github.com/yogzblr/probe => ../probe|replace github.com/yogzblr/probe => ./probe|' > go.mod && rm go.mod.orig
+
+# Copy go.sum if it exists
 COPY automation-agent/go.sum* ./
+
+# Download dependencies
 RUN go mod download
 
+# Copy all source code
 COPY automation-agent .
-# Generate go.sum and cross-compile for Windows  
-RUN go mod tidy && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o automation-agent.exe ./cmd/agent
+
+# Fix the go.mod again after copying source
+RUN sed -i 's|replace github.com/yogzblr/probe => ../probe|replace github.com/yogzblr/probe => ./probe|' go.mod
+
+# Run go mod tidy to update dependencies
+RUN go mod tidy
+
+# Cross-compile for Windows
+RUN CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o automation-agent.exe ./cmd/agent
 
 # Runtime stage - Windows Nano Server
 FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
 
 # Copy agent binary from builder
 COPY --from=builder /build/automation-agent.exe C:\\automation-agent\\automation-agent.exe
-
-# Note: Windows Nano Server has very limited capabilities
-# Directories will be created on first run if needed
-# Configuration is done via environment variables
-# For Windows service installation, you would need:
-# - A service wrapper (e.g., NSSM - Non-Sucking Service Manager)
-# - Or use Windows Server Core instead of Nano Server
-# - PowerShell scripts for service management
 
 # Set environment variables
 ENV CONTROL_PLANE_URL=http://control-plane:8080
@@ -35,11 +43,5 @@ ENV LOG_LEVEL=info
 
 WORKDIR C:\\automation-agent
 
-# Note: Windows service installation in containers requires additional setup
-# For Docker, we'll run the agent directly
-# To install as a service, you would need:
-# 1. A service wrapper executable
-# 2. PowerShell scripts to install/uninstall the service
-# 3. Proper service account configuration
-# For now, the agent runs directly in the container
+# Run the agent directly
 ENTRYPOINT ["C:\\automation-agent\\automation-agent.exe"]

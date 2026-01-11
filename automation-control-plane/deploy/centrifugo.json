@@ -1,9 +1,11 @@
 {
-  "token_hmac_secret_key": "change-me-in-production",
-  "admin": {
-    "enabled": true,
-    "password": "password",
-    "secret": "change-me-in-production"
+  "client": {
+    "token": {
+      "hmac_secret_key": "change-me-in-production"
+    },
+    "allowed_origins": ["*"]
   },
-  "api_key": "change-me-in-production"
+  "http_api": {
+    "key": "change-me-in-production"
+  }
 }

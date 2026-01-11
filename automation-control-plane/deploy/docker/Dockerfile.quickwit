@@ -1,0 +1,62 @@
+FROM minio/mc:latest AS minio-init
+
+FROM quickwit/quickwit:latest
+
+# Install bash and curl
+USER root
+RUN apt-get update && apt-get install -y bash curl && rm -rf /var/lib/apt/lists/*
+
+# Copy mc (MinIO client) from minio/mc image
+COPY --from=minio-init /usr/bin/mc /usr/bin/mc
+
+# Copy index configuration
+COPY quickwit/automation-logs-index.yaml /quickwit/config/automation-logs-index.yaml
+COPY quickwit/quickwit.yaml /quickwit/config/quickwit.yaml
+
+# Create initialization script with proper line endings
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "=== Quickwit Initialization Script ==="\n\
+\n\
+# Wait for MinIO\n\
+echo "Waiting for MinIO to be ready..."\n\
+until mc alias set myminio http://minio:9000 minioadmin minioadmin 2>/dev/null; do\n\
+  echo "MinIO not ready yet, waiting..."\n\
+  sleep 2\n\
+done\n\
+\n\
+echo "✓ MinIO is ready"\n\
+\n\
+# Create S3 buckets\n\
+echo "Creating S3 buckets..."\n\
+mc mb myminio/quickwit-indexes --ignore-existing 2>/dev/null || true\n\
+echo "✓ S3 bucket created"\n\
+\n\
+# Start Quickwit in background\n\
+echo "Starting Quickwit server..."\n\
+quickwit run &\n\
+QW_PID=$!\n\
+\n\
+# Wait for Quickwit to be ready\n\
+echo "Waiting for Quickwit API..."\n\
+for i in {1..30}; do\n\
+  if curl -f http://localhost:7280/health 2>/dev/null; then\n\
+    echo "✓ Quickwit API is ready"\n\
+    break\n\
+  fi\n\
+  sleep 2\n\
+done\n\
+\n\
+# Create index\n\
+echo "Creating automation-logs index..."\n\
+quickwit index create --index-config /quickwit/config/automation-logs-index.yaml 2>/dev/null || echo "Index may already exist"\n\
+\n\
+echo "✓ Quickwit initialization complete!"\n\
+\n\
+# Wait for Quickwit process\n\
+wait $QW_PID\n'\
+> /quickwit/init.sh && chmod +x /quickwit/init.sh
+
+ENTRYPOINT ["/bin/bash"]
+CMD ["/quickwit/init.sh"]

@@ -1,0 +1,18 @@
+version: 0.8
+
+metastore_uri: s3://quickwit-indexes/metastore
+default_index_root_uri: s3://quickwit-indexes/indexes
+
+storage:
+  s3:
+    endpoint: http://minio:9000
+    region: us-east-1
+    force_path_style_access: true
+    disable_multi_object_delete: false
+    disable_multipart_upload: false
+
+indexer:
+  enable_otlp_endpoint: false
+
+jaeger:
+  enable_endpoint: false

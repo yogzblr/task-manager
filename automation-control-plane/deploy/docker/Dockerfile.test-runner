@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /tests
+
+# Install required Python packages
+RUN pip install --no-cache-dir requests
+
+# Copy test scripts
+COPY test-linux-workflow.py /tests/
+COPY test-windows-workflow.py /tests/
+COPY run-all-tests.py /tests/
+COPY WORKFLOW-TESTING.md /tests/
+
+# Set environment variables for endpoints
+ENV CONTROL_PLANE_URL=http://control-plane:8080
+ENV QUICKWIT_URL=http://quickwit:7280
+ENV TENANT_ID=test-tenant
+ENV PROJECT_ID=test-project
+ENV JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZ2VudF9pZCI6ImFnZW50LWxpbnV4LTAxIiwidGVuYW50X2lkIjoidGVzdC10ZW5hbnQiLCJwcm9qZWN0X2lkIjoidGVzdC1wcm9qZWN0IiwiZXhwIjoxNzk5NDk1MDA5LCJpYXQiOjE3Njc5NTkwMDl9.JKQXv4YeRRA46gPU-cJpyV83FC2ZFXxWrR_M1zkuQO0
+
+# Default command runs the help/info
+CMD ["python", "-c", "print('\\nWorkflow Test Runner\\n==================\\n\\nAvailable tests:\\n  python test-linux-workflow.py\\n  python test-windows-workflow.py\\n  python run-all-tests.py\\n\\nOr run: docker compose run test-runner python test-linux-workflow.py\\n')"]

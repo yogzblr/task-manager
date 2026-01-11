@@ -65,21 +65,14 @@ func (c *Client) Disconnect() {
 }
 
 // Subscribe subscribes to the agent's channel
+// This method supports both server-side subscriptions (via channels claim in JWT)
+// and client-side subscriptions
 func (c *Client) Subscribe(handler func([]byte)) error {
-	channel := fmt.Sprintf("agents.%s.%s", c.tenantID, c.agentID)
-	
-	sub, err := c.client.NewSubscription(channel)
-	if err != nil {
-		return fmt.Errorf("failed to create subscription: %w", err)
-	}
-	
-	sub.OnPublication(func(e centrifuge.PublicationEvent) {
+	// Listen for server-side subscription publications
+	// When channels claim is present in JWT, Centrifugo sets up server-side subscriptions
+	c.client.OnPublication(func(e centrifuge.ServerPublicationEvent) {
 		handler(e.Data)
 	})
-	
-	if err := sub.Subscribe(); err != nil {
-		return fmt.Errorf("failed to subscribe: %w", err)
-	}
 	
 	return nil
 }

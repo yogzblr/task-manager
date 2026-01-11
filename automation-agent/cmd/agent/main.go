@@ -146,15 +146,13 @@ func (h *MessageHandler) HandleJobAvailable(jobID string) {
 		log.Printf("Failed to transition to executing: %v", err)
 	}
 	
-	// Transition to reporting state
-	h.agent.StateMachine.Transition(agent.StateReporting)
-	
 	// Execute workflow using probe (job.Payload is now expected to be YAML)
 	results, err := h.probeExecutor.ExecuteYAML(ctx, job.Payload)
 	
 	// Complete job
 	success := err == nil && results.Success
 	output := formatProbeResults(results, err)
+	log.Printf("Job %s completed with output: %s", job.JobID, output)
 	h.cpClient.CompleteJob(ctx, job.JobID, success)
 	
 	// Transition back to idle

@@ -4,7 +4,7 @@ services:
   control-plane:
     build:
       context: ../..
-      dockerfile: deploy/docker/Dockerfile
+      dockerfile: automation-control-plane/deploy/docker/Dockerfile
     ports:
       - "8081:8080"
     environment:
@@ -13,6 +13,7 @@ services:
       - CENTRIFUGO_URL=http://centrifugo:8000
       - QUICKWIT_URL=http://quickwit:7280
       - JWT_SECRET=change-me-in-production
+      - LOG_LEVEL=debug
     depends_on:
       mysql:
         condition: service_healthy
@@ -78,18 +79,47 @@ services:
     networks:
       - automation-network
 
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - automation-network
+
   quickwit:
-    image: quickwit/quickwit:latest
-    command: run
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.quickwit
     ports:
       - "7280:7280"
+    environment:
+      - QW_ENABLE_OPENTELEMETRY_OTLP_EXPORTER=false
+      - QW_ENABLE_JAEGER_EXPORTER=false
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
     volumes:
-      - quickwit_data:/qwdata
+      - quickwit_data:/quickwit/qwdata
+    depends_on:
+      minio:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7280/health"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     networks:
       - automation-network
 
@@ -103,7 +133,7 @@ services:
       - TENANT_ID=test-tenant
       - PROJECT_ID=test-project
       - AGENT_ID=agent-linux-01
-      - JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZ2VudF9pZCI6ImFnZW50LWxpbnV4LTAxIiwidGVuYW50X2lkIjoidGVzdC10ZW5hbnQiLCJwcm9qZWN0X2lkIjoidGVzdC1wcm9qZWN0IiwiZXhwIjoxNzk5NDk1MDA5LCJpYXQiOjE3Njc5NTkwMDl9.JKQXv4YeRRA46gPU-cJpyV83FC2ZFXxWrR_M1zkuQO0
+      - JWT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZ2VudC1saW51eC0wMSIsImFnZW50X2lkIjoiYWdlbnQtbGludXgtMDEiLCJ0ZW5hbnRfaWQiOiJ0ZXN0LXRlbmFudCIsInByb2plY3RfaWQiOiJ0ZXN0LXByb2plY3QiLCJjaGFubmVscyI6WyJhZ2VudHMudGVzdC10ZW5hbnQuYWdlbnQtbGludXgtMDEiXSwiZXhwIjoxNzk5NTYzNTEzLCJpYXQiOjE3NjgwMjc1MTN9.CUmqs_obtkz1xdLUYfdGeHaT4XVNEyJVaEjqKwaIwLk
       - LOG_LEVEL=debug
     depends_on:
       control-plane:
@@ -144,9 +174,30 @@ services:
     # Note: Windows containers require Windows container support
     # The agent will run directly (Windows service installation in containers is complex)
 
+  test-runner:
+    build:
+      context: ../..
+      dockerfile: automation-control-plane/deploy/docker/Dockerfile.test-runner
+    environment:
+      - CONTROL_PLANE_URL=http://control-plane:8080
+      - QUICKWIT_URL=http://quickwit:7280
+      - TENANT_ID=test-tenant
+      - PROJECT_ID=test-project
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      quickwit:
+        condition: service_healthy
+    networks:
+      - automation-network
+    profiles:
+      - test
+    # Run this service with: docker compose run test-runner python test-linux-workflow.py
+
 volumes:
   mysql_data:
   valkey_data:
+  minio_data:
   quickwit_data:
   agent_linux_data:
   agent_linux_logs:

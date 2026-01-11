@@ -2,18 +2,30 @@ FROM golang:1.21 AS builder
 
 WORKDIR /build
 
-# Copy agent source
-COPY automation-agent/go.mod ./
+# Copy probe module first (since agent depends on it)
+COPY probe ./probe
+
+# Copy agent go.mod and fix the replace directive
+COPY automation-agent/go.mod ./go.mod.orig
+RUN cat go.mod.orig | sed 's|replace github.com/yogzblr/probe => ../probe|replace github.com/yogzblr/probe => ./probe|' > go.mod && rm go.mod.orig
+
 # Copy go.sum if it exists (optional)
 COPY automation-agent/go.sum* ./
+
 # Download dependencies
 RUN go mod download
 
-# Copy all source code
+# Copy all source code (this will overwrite go.mod, so we need to fix it again)
 COPY automation-agent .
 
-# Generate go.sum if missing and build
-RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o automation-agent ./cmd/agent
+# Fix the go.mod again after copying source
+RUN sed -i 's|replace github.com/yogzblr/probe => ../probe|replace github.com/yogzblr/probe => ./probe|' go.mod
+
+# Run go mod tidy to update dependencies
+RUN go mod tidy
+
+# Build the agent
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o automation-agent ./cmd/agent
 
 FROM ubuntu:22.04
 

@@ -21,9 +21,11 @@ def generate_jwt(secret, agent_id, tenant_id, project_id, expiry_days=365):
     now = datetime.utcnow()
     exp = now + timedelta(days=expiry_days)
     payload = {
+        "sub": agent_id,  # Required by Centrifugo for user identification
         "agent_id": agent_id,
         "tenant_id": tenant_id,
         "project_id": project_id,
+        "channels": [f"agents.{tenant_id}.{agent_id}"],  # Server-side subscription
         "exp": int(exp.timestamp()),
         "iat": int(now.timestamp())
     }

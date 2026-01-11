@@ -1,0 +1,67 @@
+version: 0.8
+
+index_id: automation-logs
+
+doc_mapping:
+  field_mappings:
+    - name: timestamp
+      type: datetime
+      fast: true
+      stored: true
+      input_formats:
+        - rfc3339
+        - unix_timestamp
+    
+    - name: level
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: true
+    
+    - name: message
+      type: text
+      tokenizer: default
+      stored: true
+    
+    - name: job_id
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: true
+    
+    - name: agent_id
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: true
+    
+    - name: tenant_id
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: true
+    
+    - name: project_id
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: true
+    
+    - name: task_name
+      type: text
+      tokenizer: default
+      stored: true
+    
+    - name: source
+      type: text
+      tokenizer: raw
+      fast: true
+      stored: true
+
+  timestamp_field: timestamp
+
+indexing_settings:
+  commit_timeout_secs: 60
+
+search_settings:
+  default_search_fields: [message, task_name]
