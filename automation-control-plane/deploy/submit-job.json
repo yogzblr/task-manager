@@ -1,0 +1,6 @@
+{
+  "tenant_id": "test-tenant",
+  "project_id": "test-project",
+  "agent_id": "agent-linux-01",
+  "workflow": "tasks:\n  - name: final-test\n    type: command\n    config:\n      command: echo\n      args:\n        - SUCCESS! Complete end-to-end test!\n"
+}
